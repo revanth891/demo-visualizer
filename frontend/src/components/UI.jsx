@@ -563,15 +563,43 @@ function UI() {
   const drawAutoLabel = (ctx, layer, props, type) => {
     const label = layer.label || props.label || prettify(layer.id);
     if (!label || type === 'text') return;
+
     let cx = props.x ?? 0;
     let cy = props.y ?? 0;
-    if (type === 'rectangle') { cx = props.x + (props.width || 0) / 2; cy = props.y + (props.height || 0) / 2; }
-    if (type === 'circle' || type === 'star' || type === 'polygon') { cx = props.x; cy = props.y; }
-    if (type === 'line') { cx = (props.x1 + props.x2) / 2; cy = (props.y1 + props.y2) / 2; }
-    if (type === 'arrow') { cx = props.x + (props.dx || 0) / 2; cy = props.y + (props.dy || 0) / 2; }
+    let offsetX = 0;
+    let offsetY = -6; // Default offset above the shape
+
+    if (type === 'rectangle') {
+      cx = props.x + (props.width || 0) / 2;
+      cy = props.y + (props.height || 0) / 2;
+      offsetY = -(props.height || 0) / 2 - 12; // Position above the rectangle
+    }
+    if (type === 'circle' || type === 'star' || type === 'polygon') {
+      const radius = props.r || props.outerRadius || props.radius || 20;
+      cx = props.x;
+      cy = props.y;
+      offsetY = -radius - 12; // Position above the circle/star/polygon
+    }
+    if (type === 'line') {
+      cx = (props.x1 + props.x2) / 2;
+      cy = (props.y1 + props.y2) / 2;
+      offsetY = -8; // Position slightly above the line
+    }
+    if (type === 'arrow') {
+      cx = props.x + (props.dx || 0) / 2;
+      cy = props.y + (props.dy || 0) / 2;
+      offsetY = -8; // Position slightly above the arrow
+    }
     if (type === 'curve' && Array.isArray(props.points) && props.points.length) {
       const mid = props.points[Math.floor(props.points.length / 2)];
-      cx = mid.x; cy = mid.y;
+      cx = mid.x;
+      cy = mid.y;
+      offsetY = -8; // Position slightly above the curve
+    }
+    if (type === 'wave') {
+      cx = props.x + (props.width || 200) / 2;
+      cy = props.y;
+      offsetY = - (props.amplitude || 20) - 12; // Position above the wave
     }
 
     ctx.save();
@@ -579,7 +607,7 @@ function UI() {
     ctx.font = `10px Inter`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
-    ctx.fillText(label, cx, cy - 6);
+    ctx.fillText(label, cx + offsetX, cy + offsetY);
     ctx.restore();
   };
 

@@ -31,7 +31,7 @@ let clients = [];
 // LLM Service Function
 async function generateExplanationAndVisualization(question) {
     try {
-        const prompt = `You are an educational AI that explains concepts with both text and visualizations. Be elaborate and detailed. Mention every element of the list if there is one.
+        const prompt = `You are an educational AI that explains concepts with both text and visualizations. Be elaborate and detailed. Mention every element of the list if there is one. The visualizations should be ordered and systematic pleasant to the eye.
 For the question: "${question}"
 
 Please respond with a JSON object containing:
