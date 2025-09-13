@@ -13,6 +13,18 @@ import {
   Loader2
 } from 'lucide-react';
 
+// API base URL configuration
+const getApiBaseUrl = () => {
+  // In production, use environment variable or fallback to the deployed API
+  if (import.meta.env.PROD) {
+    return import.meta.env.VITE_API_BASE_URL || 'https://demo-visualizer.onrender.com';
+  }
+  // In development, use the Vite proxy (which routes /api to the backend)
+  return '';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
 // Consolidated UI Component - Black & White Luxury Design
 function UI() {
   const [questions, setQuestions] = useState([]);
@@ -42,7 +54,7 @@ function UI() {
 
   // SSE connection
   useEffect(() => {
-    const eventSource = new EventSource('/api/stream');
+    const eventSource = new EventSource(`${API_BASE_URL}/api/stream`);
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'question_created') {
@@ -274,7 +286,10 @@ function UI() {
 
   const fetchQuestions = async () => {
     try {
-      const response = await fetch('/api/questions');
+      const response = await fetch(`${API_BASE_URL}/api/questions`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const data = await response.json();
       setQuestions(data);
     } catch (error) {
@@ -288,11 +303,14 @@ function UI() {
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/questions', {
+      const response = await fetch(`${API_BASE_URL}/api/questions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, question: question.trim() }),
       });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       setQuestion('');
     } catch (error) {
       console.error('Error submitting question:', error);
@@ -303,7 +321,10 @@ function UI() {
 
   const handleAnswerClick = async (answerId) => {
     try {
-      const response = await fetch(`/api/answers/${answerId}`);
+      const response = await fetch(`${API_BASE_URL}/api/answers/${answerId}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       const answer = await response.json();
       setCurrentAnswer(answer);
       setIsPlaying(true);

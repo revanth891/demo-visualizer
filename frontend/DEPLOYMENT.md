@@ -2,13 +2,18 @@
 
 Your React frontend is now properly configured for production deployment!
 
-## Build Process
+## ✅ Latest Fixes Applied
 
-The build process has been fixed and optimized:
+### API Connection Issues Fixed
+- **Problem**: Vercel deployment was getting HTML instead of JSON from API calls
+- **Root Cause**: Proxy configuration only works in development, not production
+- **Solution**: Added environment-based API URL configuration
+- **Files Updated**: `.env.production`, `UI.jsx` with proper API base URLs
 
-1. **Fixed build script**: Changed from `vite` to `vite build`
-2. **Production configuration**: Added proper build settings with code splitting
-3. **Optimized assets**: CSS and JS are properly minified and chunked
+### Build Process Fixed
+- **Fixed build script**: Changed from `vite` to `vite build`
+- **Production configuration**: Added proper build settings with code splitting
+- **Optimized assets**: CSS and JS are properly minified and chunked
 
 ## Building for Production
 
@@ -81,11 +86,25 @@ This serves the `dist/` folder on `http://localhost:4173`
 
 ## Environment Variables
 
-If you need environment-specific configuration, create `.env` files:
-- `.env.local` (development)
-- `.env.production` (production)
+The application now uses environment variables for API configuration:
 
-Example:
+### Production Environment
+- **File**: `.env.production`
+- **Variable**: `VITE_API_BASE_URL=https://demo-visualizer.onrender.com`
+- **Purpose**: Tells the frontend where to find the API in production
+
+### How It Works
+- **Development**: Uses Vite proxy (configured in `vite.config.js`)
+- **Production**: Uses the full API URL from environment variable
+- **Fallback**: If no environment variable, defaults to the demo API
+
+### Custom API Setup
+If you're deploying your own backend:
+1. Update `.env.production` with your API URL
+2. Ensure your backend has CORS enabled (like the demo API does)
+3. Redeploy the frontend
+
+Example custom setup:
 ```
-VITE_API_URL=https://your-api.com
+VITE_API_BASE_URL=https://your-custom-api.com
 ```
