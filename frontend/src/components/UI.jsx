@@ -60,6 +60,12 @@ function UI() {
       if (data.type === 'question_created') {
         setQuestions(prev => [...prev, data.question]);
       } else if (data.type === 'answer_created') {
+        // Update the corresponding question with answerId
+        setQuestions(prev => prev.map(q =>
+          q.id === data.answer.questionId
+            ? { ...q, answerId: data.answer.id }
+            : q
+        ));
         if (questions.some(q => q.id === data.answer.questionId)) {
           setCurrentAnswer(data.answer);
           setIsPlaying(true);
@@ -106,14 +112,21 @@ function UI() {
       // Save context state
       ctx.save();
 
-      // Clip to canvas bounds to prevent overflow
-      ctx.beginPath();
-      ctx.rect(0, 0, canvas.width, canvas.height);
-      ctx.clip();
-
-      // Apply scaling and offset transform
+      // Apply scaling and offset transform first
       ctx.translate(offsetX, offsetY);
       ctx.scale(scale, scale);
+
+      // Clip to the scaled canvas bounds to prevent overflow
+      // Use a slightly smaller clip area to ensure labels stay within bounds
+      const clipPadding = 10;
+      ctx.beginPath();
+      ctx.rect(
+        -offsetX / scale + clipPadding,
+        -offsetY / scale + clipPadding,
+        canvas.width / scale - 2 * clipPadding,
+        canvas.height / scale - 2 * clipPadding
+      );
+      ctx.clip();
 
       // Draw all layers
       layers.forEach(layer => {
