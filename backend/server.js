@@ -7,7 +7,10 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
-app.use(cors());
+app.use(cors({
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173'],
+    credentials: true
+}));
 app.use(express.json());
 
 // Initialize IO.net client
@@ -28,144 +31,75 @@ let clients = [];
 // LLM Service Function
 async function generateExplanationAndVisualization(question) {
     try {
-        const prompt = `You are an advanced educational AI that creates STUNNING, ELABORATE visualizations for scientific concepts. Create visually spectacular, large-scale animations that fill the entire canvas (800x600) with dramatic effects and multiple animated elements.
-
+        const prompt = `You are an educational AI that explains concepts with both text and visualizations. Be elaborate and detailed. Mention every element of the list if there is one.
 For the question: "${question}"
 
-Create an ELABORATE, SPECTACULAR visualization with these requirements:
+Please respond with a JSON object containing:
+1. "text": A clear, simple explanation (2-3 sentences)
+2. "visualization": A JSON specification for animating the concept
 
-🎯 **VISUAL SCALE & IMPACT:**
-- Use the FULL canvas: 700x450 pixels
-- Create LARGE, impressive elements (50-100+ pixel sizes)
-- Fill the canvas with 8-12 animated layers
-- Use dramatic colors and effects: #00ffff, #ff00ff, #ffff00, #ff6600, #ff0000, #ffffff
+The visualization should include:
+- id: unique identifier
+- duration: animation duration in milliseconds (3000-6000 recommended)
+- fps: frames per second (30 recommended)
+- layers: array of visual elements with animations
 
-🎨 **AVAILABLE SHAPE TYPES (use MULTIPLE types):**
-- "circle" - with glow: true, gradient: true effects
-- "rectangle" - with rounded: true, gradient: true
-- "star" - glowing stars with outerRadius: 40-60
-- "arrow" - gradient arrows with glow: true, width: 4-6
-- "text" - large, bold text with glow: true, fontSize: 48-72, outline: true
-- "particles" - particle systems (count: 40-60, radius: 120-180)
-- "wave" - animated sine waves with fill gradients
-- "explosion" - radiating explosion effects (particles: 16-24, radius: 80-120)
-- "energy" - concentric energy rings (rings: 6-8, radius: 80-140)
+Each layer should have:
+- id: unique identifier
+- type: one of "circle", "rectangle", "polygon", "star", "arrow", "line", "curve", "text", "particle", "wave"
+- props: visual properties using these exact names:
+  - For circles: { "x", "y", "r" (not radius), "fill", "stroke", "strokeWidth" }
+  - For rectangles: { "x", "y", "width", "height", "fill", "stroke", "strokeWidth" }
+  - For text: { "x", "y", "text", "fontSize", "fill", "fontFamily" }
+  - For arrows: { "x", "y", "dx", "dy", "color", "width" }
+  - For lines: { "x1", "y1", "x2", "y2", "stroke", "strokeWidth", "dash" }
+- animations: array of animation objects with:
+  - property: the prop to animate
+  - from: starting value
+  - to: ending value
+  - start: start time in ms
+  - end: end time in ms
+  - easing: "easeIn", "easeOut", "easeInOut", "bounce", "elastic", "back"
+  - type: "linear", "orbit", "bounce", "pulse", "fade", "rotate", "color"
 
-✨ **ENHANCED VISUAL PROPERTIES:**
-- glow: true for ALL major elements
-- gradient: true for color transitions
-- bold: true for text emphasis
-- outline: true for text contrast
-- Large scales: r: 40-80, width: 120-250, height: 60-120
-- Bright, vibrant colors with high contrast
+IMPORTANT RENDERING RULES (strict):
+1) Black & White only. Use only "#000" black fills and strokes on a white canvas.
+2) Name your layers with meaningful ids and optional label field to clarify elements. For photosynthesis, use ids/labels like "leaf", "sun", "water", "air", "glucose", "oxygen", "roots", "soil", etc.
+3) Prefer filled black shapes with black outlines. No colors other than black.
+4) Use "fill" for fill color and "stroke" for stroke color. Do not use "color" except in arrows' width/color fields which will be coerced.
+5) Use "r" for circle radius, not "radius", always keep "r" less than "50" and more than "10".
+6) Respond with pure JSON only, no markdown formatting.
 
-🎬 **ELABORATE ANIMATIONS:**
-- duration: 10000-15000ms for spectacular impact
-- Multiple animation phases with overlapping timing
-- Complex easing: "bounce", "elastic", "back"
-- Scale transformations (from: 0.5, to: 2.0)
-- Rotation animations (from: 0, to: 6.28)
-- Sequential layered animations
-
-🌟 **SPECTACULAR COMPOSITION:**
-- Background atmospheric effects (particles, energy fields)
-- Central dramatic elements (large glowing objects)
-- Dynamic supporting animations (waves, explosions)
-- Multiple text layers with different sizes
-- Particle effects and energy visualizations
-
-EXAMPLE for Photosynthesis:
+Example response format:
 {
-  "text": "Photosynthesis is the process by which plants convert light energy into chemical energy...",
+  "text": "Newton's First Law states that an object will remain at rest or in uniform motion unless acted upon by an external force.",
   "visualization": {
-    "id": "photosynthesis_spectacular",
-    "duration": 10000,
+    "id": "newtons_law_vis",
+    "duration": 4000,
     "fps": 30,
     "layers": [
       {
-        "id": "sun_giant",
+        "id": "ball",
         "type": "circle",
-        "props": { "x": 350, "y": 120, "r": 70, "fill": "#ffff00", "glow": true, "gradient": true },
+        "props": { "x": 100, "y": 200, "r": 20, "fill": "#3498db" },
         "animations": [
-          { "property": "r", "from": 50, "to": 90, "start": 0, "end": 3000, "easing": "elastic" }
+          { "property": "x", "from": 100, "to": 400, "start": 0, "end": 3000, "easing": "easeInOut" }
         ]
       },
       {
-        "id": "energy_rings",
-        "type": "energy",
-        "props": { "x": 350, "y": 120, "radius": 100, "rings": 6, "color": "#00ffff" },
-        "animations": [
-          { "property": "radius", "from": 60, "to": 130, "start": 1000, "end": 5000, "easing": "bounce" }
-        ]
-      },
-      {
-        "id": "particles_sun",
-        "type": "particles",
-        "props": { "x": 350, "y": 120, "count": 40, "radius": 120, "colors": ["#ffff00", "#ff6600", "#00ffff", "#ffffff"] },
-        "animations": []
-      },
-      {
-        "id": "plant_large",
-        "type": "rectangle",
-        "props": { "x": 200, "y": 320, "width": 220, "height": 80, "fill": "#34c759", "rounded": true, "gradient": true },
-        "animations": [
-          { "property": "height", "from": 40, "to": 120, "start": 2000, "end": 6000, "easing": "back" }
-        ]
-      },
-      {
-        "id": "wave_energy",
-        "type": "wave",
-        "props": { "x": 50, "y": 300, "width": 500, "amplitude": 30, "stroke": "#00ff00", "strokeWidth": 4, "fill": "rgba(0,255,0,0.3)" },
-        "animations": []
-      },
-      {
-        "id": "explosion_energy",
-        "type": "explosion",
-        "props": { "x": 350, "y": 200, "radius": 80, "particles": 16, "colors": ["#ffff00", "#00ff00", "#ffffff", "#ff6600"] },
-        "animations": [
-          { "property": "radius", "from": 20, "to": 110, "start": 3000, "end": 7000, "easing": "bounce" }
-        ]
-      },
-      {
-        "id": "star_energy",
-        "type": "star",
-        "props": { "x": 550, "y": 160, "outerRadius": 40, "innerRadius": 20, "fill": "#ffff00", "glow": true },
-        "animations": [
-          { "property": "outerRadius", "from": 25, "to": 55, "start": 4000, "end": 8000, "easing": "elastic" }
-        ]
-      },
-      {
-        "id": "arrow_light",
+        "id": "force_arrow",
         "type": "arrow",
-        "props": { "x": 300, "y": 140, "dx": -80, "dy": -15, "color": "#ffff00", "width": 4, "glow": true },
-        "animations": [
-          { "property": "dx", "from": -40, "to": -120, "start": 1000, "end": 4000, "easing": "easeInOut" }
-        ]
-      },
-      {
-        "id": "title_text",
-        "type": "text",
-        "props": { "x": 350, "y": 60, "text": "PHOTOSYNTHESIS", "fontSize": 48, "fill": "#ffffff", "bold": true, "glow": true, "outline": true },
-        "animations": [
-          { "property": "fontSize", "from": 24, "to": 60, "start": 0, "end": 2500, "easing": "elastic" }
-        ]
-      },
-      {
-        "id": "subtitle_text",
-        "type": "text",
-        "props": { "x": 350, "y": 400, "text": "Light Energy → Chemical Energy", "fontSize": 24, "fill": "#00ffff", "bold": true, "glow": true },
-        "animations": [
-          { "property": "y", "from": 420, "to": 400, "start": 2000, "end": 4000, "easing": "bounce" }
-        ]
+        "props": { "x": 90, "y": 200, "dx": 30, "dy": 0, "color": "#e74c3c", "width": 3 },
+        "animations": []
       }
     ]
   }
-}
-
-⚠️ IMPORTANT: Respond with PURE JSON only, no markdown formatting!`;
+}`;
 
         const response = await client.chat.completions.create({
+            // model: "openai/gpt-oss-120b",
             model: "meta-llama/Llama-3.3-70B-Instruct",
+            // model: "Qwen/Qwen3-235B-A22B-Thinking-2507",
             messages: [
                 {
                     role: "system",
@@ -233,7 +167,7 @@ EXAMPLE for Photosynthesis:
                         {
                             id: "fallback_text",
                             type: "text",
-                            props: { x: 100, y: 100, text: "Visualization", fontSize: 24, fill: "#333" },
+                            props: { x: 100, y: 100, text: "Visualization", fontSize: 14, fill: "#333" },
                             animations: []
                         }
                     ]
@@ -347,8 +281,8 @@ app.get('/api/answers/:id', (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+app.listen(PORT, 'localhost', () => {
+    console.log(`Server running on http://localhost:${PORT}`);
 });
 
 module.exports = app;

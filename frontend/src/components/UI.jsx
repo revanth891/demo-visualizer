@@ -26,31 +26,13 @@ function UI() {
   const startTimeRef = useRef(null);
   const [currentTime, setCurrentTime] = useState(0);
 
-  // Demo questions - spectacular scientific concepts
+  // Demo questions - cleaned and minimal
   const demoQuestions = [
     "Explain Newton's First Law of Motion",
     "What is photosynthesis?",
     "Describe the Solar System",
     "How does gravity work?",
-    "Explain the water cycle",
-    "What is nuclear fission?",
-    "Explain how volcanoes erupt",
-    "Describe the process of evolution",
-    "How does the human heart work?",
-    "Explain climate change",
-    "What is the speed of light?",
-    "How do rockets work?",
-    "What is the periodic table?",
-    "Explain how vaccines work",
-    "What is dark matter?",
-    "How do earthquakes happen?",
-    "What is the solar system?",
-    "Explain how computers work",
-    "What is the theory of relativity?",
-    "How do airplanes fly?",
-    "What is the human brain?",
-    "Explain how plants grow",
-    "What is nuclear fusion?"
+    "Explain the water cycle"
   ];
 
   // Load questions on mount
@@ -60,7 +42,7 @@ function UI() {
 
   // SSE connection
   useEffect(() => {
-    const eventSource = new EventSource('http://localhost:3001/api/stream');
+    const eventSource = new EventSource('/api/stream');
     eventSource.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'question_created') {
@@ -87,6 +69,12 @@ function UI() {
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
+
+    // Calculate scaling and offset to fit content within canvas bounds
+    const layers = currentAnswer.visualization.layers || [];
+    const bounds = calculateLayerBounds(layers);
+    const { scale, offsetX, offsetY } = calculateFitTransform(bounds, canvas.width, canvas.height);
+
     const animate = (timestamp) => {
       if (!startTimeRef.current) startTimeRef.current = timestamp;
 
@@ -95,13 +83,33 @@ function UI() {
       const progress = Math.min(elapsed / duration, 1);
 
       setCurrentTime(elapsed);
+
+      // Clear canvas completely
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Fill background
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      currentAnswer.visualization.layers?.forEach(layer => {
+      // Save context state
+      ctx.save();
+
+      // Clip to canvas bounds to prevent overflow
+      ctx.beginPath();
+      ctx.rect(0, 0, canvas.width, canvas.height);
+      ctx.clip();
+
+      // Apply scaling and offset transform
+      ctx.translate(offsetX, offsetY);
+      ctx.scale(scale, scale);
+
+      // Draw all layers
+      layers.forEach(layer => {
         drawLayer(ctx, layer, progress, elapsed);
       });
+
+      // Restore context state
+      ctx.restore();
 
       if (progress < 1) {
         animationRef.current = requestAnimationFrame(animate);
@@ -124,9 +132,149 @@ function UI() {
     setCurrentTime(0);
   }, [currentAnswer?.visualization]);
 
+  // Helper functions for canvas fitting
+  const calculateLayerBounds = (layers) => {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+    layers.forEach(layer => {
+      const props = layer.props;
+      if (!props) return;
+
+      switch (layer.type) {
+        case 'circle':
+          const cx = props.x || 0;
+          const cy = props.y || 0;
+          const cr = props.r || 10;
+          minX = Math.min(minX, cx - cr);
+          minY = Math.min(minY, cy - cr);
+          maxX = Math.max(maxX, cx + cr);
+          maxY = Math.max(maxY, cy + cr);
+          break;
+        case 'rectangle':
+          const rx = props.x || 0;
+          const ry = props.y || 0;
+          const rw = props.width || 20;
+          const rh = props.height || 20;
+          minX = Math.min(minX, rx);
+          minY = Math.min(minY, ry);
+          maxX = Math.max(maxX, rx + rw);
+          maxY = Math.max(maxY, ry + rh);
+          break;
+        case 'arrow':
+          const ax = props.x || 0;
+          const ay = props.y || 0;
+          const adx = props.dx || 0;
+          const ady = props.dy || 0;
+          minX = Math.min(minX, ax, ax + adx);
+          minY = Math.min(minY, ay, ay + ady);
+          maxX = Math.max(maxX, ax, ax + adx);
+          maxY = Math.max(maxY, ay, ay + ady);
+          break;
+        case 'line':
+          const lx1 = props.x1 || 0;
+          const ly1 = props.y1 || 0;
+          const lx2 = props.x2 || 0;
+          const ly2 = props.y2 || 0;
+          minX = Math.min(minX, lx1, lx2);
+          minY = Math.min(minY, ly1, ly2);
+          maxX = Math.max(maxX, lx1, lx2);
+          maxY = Math.max(maxY, ly1, ly2);
+          break;
+        case 'text':
+          const tx = props.x || 0;
+          const ty = props.y || 0;
+          minX = Math.min(minX, tx);
+          minY = Math.min(minY, ty);
+          maxX = Math.max(maxX, tx + 100); // Estimate text width
+          maxY = Math.max(maxY, ty + (props.fontSize || 16));
+          break;
+        case 'polygon':
+        case 'star':
+          const px = props.x || 0;
+          const py = props.y || 0;
+          const pr = Math.max(props.r || 40, props.outerRadius || 40);
+          minX = Math.min(minX, px - pr);
+          minY = Math.min(minY, py - pr);
+          maxX = Math.max(maxX, px + pr);
+          maxY = Math.max(maxY, py + pr);
+          break;
+        case 'wave':
+          const wx = props.x || 0;
+          const wy = props.y || 0;
+          const ww = props.width || 200;
+          const wa = props.amplitude || 20;
+          minX = Math.min(minX, wx);
+          minY = Math.min(minY, wy - wa);
+          maxX = Math.max(maxX, wx + ww);
+          maxY = Math.max(maxY, wy + wa);
+          break;
+        case 'curve':
+          if (props.points && props.points.length) {
+            props.points.forEach(point => {
+              minX = Math.min(minX, point.x || 0);
+              minY = Math.min(minY, point.y || 0);
+              maxX = Math.max(maxX, point.x || 0);
+              maxY = Math.max(maxY, point.y || 0);
+            });
+          }
+          break;
+      }
+    });
+
+    // Add padding for labels
+    const labelPadding = 30;
+    minX -= labelPadding;
+    minY -= labelPadding;
+    maxX += labelPadding;
+    maxY += labelPadding;
+
+    return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
+  };
+
+  const calculateFitTransform = (bounds, canvasWidth, canvasHeight) => {
+    if (bounds.width <= 0 || bounds.height <= 0) {
+      return { scale: 1, offsetX: 0, offsetY: 0 };
+    }
+
+    // Calculate scale to fit within canvas while maintaining aspect ratio
+    const contentAspectRatio = bounds.width / bounds.height;
+    const canvasAspectRatio = canvasWidth / canvasHeight;
+
+    let scale;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (contentAspectRatio > canvasAspectRatio) {
+      // Content is wider than canvas - fit by width
+      scale = canvasWidth / bounds.width;
+      const scaledHeight = bounds.height * scale;
+      offsetY = (canvasHeight - scaledHeight) / 2;
+    } else {
+      // Content is taller than canvas - fit by height
+      scale = canvasHeight / bounds.height;
+      const scaledWidth = bounds.width * scale;
+      offsetX = (canvasWidth - scaledWidth) / 2;
+    }
+
+    // Don't scale up, only down, and ensure minimum scale for readability
+    const finalScale = Math.min(scale, 1);
+    const minScale = Math.max(0.2, Math.min(canvasWidth / bounds.width, canvasHeight / bounds.height) * 0.8);
+    const clampedScale = Math.max(finalScale, minScale);
+
+    // Adjust offsets to center the content properly
+    const actualOffsetX = offsetX - bounds.minX * clampedScale;
+    const actualOffsetY = offsetY - bounds.minY * clampedScale;
+
+    return {
+      scale: clampedScale,
+      offsetX: actualOffsetX,
+      offsetY: actualOffsetY
+    };
+  };
+
   const fetchQuestions = async () => {
     try {
-      const response = await fetch('http://localhost:3001/api/questions');
+      const response = await fetch('/api/questions');
       const data = await response.json();
       setQuestions(data);
     } catch (error) {
@@ -140,7 +288,7 @@ function UI() {
 
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:3001/api/questions', {
+      const response = await fetch('/api/questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, question: question.trim() }),
@@ -155,7 +303,7 @@ function UI() {
 
   const handleAnswerClick = async (answerId) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/answers/${answerId}`);
+      const response = await fetch(`/api/answers/${answerId}`);
       const answer = await response.json();
       setCurrentAnswer(answer);
       setIsPlaying(true);
@@ -168,6 +316,12 @@ function UI() {
     setIsPlaying(!isPlaying);
   };
 
+  const handleRestart = () => {
+    startTimeRef.current = null;
+    setCurrentTime(0);
+    setIsPlaying(true);
+  };
+
   const handleDemoClick = (demoQuestion) => {
     setQuestion(demoQuestion);
     handleQuestionSubmit({ preventDefault: () => {} });
@@ -178,34 +332,44 @@ function UI() {
     const { type, props, animations = [] } = layer;
     const normalizedProps = normalizeProps(props);
     const currentProps = applyAnimations(normalizedProps, animations, elapsed);
+    const enforcedProps = enforceMonochrome(currentProps);
 
     switch (type) {
       case 'circle':
-        drawCircle(ctx, currentProps);
+        drawCircle(ctx, enforcedProps);
+        drawAutoLabel(ctx, layer, enforcedProps, 'circle');
         break;
       case 'rectangle':
-        drawRectangle(ctx, currentProps);
+        drawRectangle(ctx, enforcedProps);
+        drawAutoLabel(ctx, layer, enforcedProps, 'rectangle');
         break;
       case 'arrow':
-        drawArrow(ctx, currentProps);
+        drawArrow(ctx, enforcedProps);
+        drawAutoLabel(ctx, layer, enforcedProps, 'arrow');
         break;
-      case 'text':
-        drawText(ctx, currentProps);
+      case 'line':
+        drawLine(ctx, enforcedProps);
+        drawAutoLabel(ctx, layer, enforcedProps, 'line');
+        break;
+      case 'polygon':
+        drawPolygon(ctx, enforcedProps);
+        drawAutoLabel(ctx, layer, enforcedProps, 'polygon');
+        break;
+      case 'curve':
+        drawCurve(ctx, enforcedProps);
+        drawAutoLabel(ctx, layer, enforcedProps, 'curve');
         break;
       case 'star':
-        drawStar(ctx, currentProps);
-        break;
-      case 'particles':
-        drawParticleSystem(ctx, currentProps);
+        drawStar(ctx, enforcedProps);
+        drawAutoLabel(ctx, layer, enforcedProps, 'star');
         break;
       case 'wave':
-        drawWave(ctx, currentProps);
+        drawWave(ctx, enforcedProps);
+        drawAutoLabel(ctx, layer, enforcedProps, 'wave');
         break;
-      case 'explosion':
-        drawExplosion(ctx, currentProps);
-        break;
-      case 'energy':
-        drawEnergyField(ctx, currentProps);
+      case 'text':
+        // Text is used as-is but force black
+        drawText(ctx, enforcedProps);
         break;
       default:
         console.warn(`Unknown layer type: ${type}`);
@@ -218,6 +382,15 @@ function UI() {
     if (normalized.color && !normalized.stroke) normalized.stroke = normalized.color;
     if (normalized.radius && !normalized.r) normalized.r = normalized.radius;
     return normalized;
+  };
+
+  const enforceMonochrome = (props) => {
+    return {
+      ...props,
+      fill: '#000',
+      stroke: '#000',
+      color: '#000'
+    };
   };
 
   const applyAnimations = (baseProps, animations, elapsed) => {
@@ -244,115 +417,162 @@ function UI() {
   };
 
   const drawCircle = (ctx, props) => {
-    const { x, y, r, fill, stroke, strokeWidth = 1, glow = false, gradient = false } = props;
-
-    ctx.save();
-
-    if (glow) {
-      // Add glow effect
-      ctx.shadowColor = fill || stroke || '#ffffff';
-      ctx.shadowBlur = 20;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-    }
-
+    const { x, y, r, fill, stroke, strokeWidth = 1 } = props;
     ctx.beginPath();
     ctx.arc(x, y, r, 0, 2 * Math.PI);
-
-    if (gradient && fill) {
-      // Create radial gradient
-      const gradientFill = ctx.createRadialGradient(x, y, 0, x, y, r);
-      gradientFill.addColorStop(0, fill);
-      gradientFill.addColorStop(0.7, fill + '80');
-      gradientFill.addColorStop(1, fill + '40');
-      ctx.fillStyle = gradientFill;
-    } else if (fill) {
+    if (fill) {
       ctx.fillStyle = fill;
+      ctx.fill();
     }
-
-    if (fill) ctx.fill();
-
     if (stroke) {
       ctx.strokeStyle = stroke;
       ctx.lineWidth = strokeWidth;
       ctx.stroke();
     }
-
-    ctx.restore();
   };
 
   const drawRectangle = (ctx, props) => {
-    const { x, y, width, height, fill, stroke, strokeWidth = 1, glow = false, rounded = false, gradient = false } = props;
-
-    ctx.save();
-
-    if (glow) {
-      ctx.shadowColor = fill || stroke || '#ffffff';
-      ctx.shadowBlur = 15;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-    }
-
-    if (rounded) {
-      // Draw rounded rectangle
-      const radius = Math.min(width, height) * 0.1;
-      ctx.beginPath();
-      ctx.roundRect(x, y, width, height, radius);
-    } else {
-      ctx.beginPath();
-      ctx.rect(x, y, width, height);
-    }
-
-    if (gradient && fill) {
-      // Create linear gradient
-      const gradientFill = ctx.createLinearGradient(x, y, x + width, y + height);
-      gradientFill.addColorStop(0, fill);
-      gradientFill.addColorStop(0.5, fill + 'CC');
-      gradientFill.addColorStop(1, fill + '80');
-      ctx.fillStyle = gradientFill;
-    } else if (fill) {
+    const { x, y, width, height, fill, stroke, strokeWidth = 1 } = props;
+    if (fill) {
       ctx.fillStyle = fill;
+      ctx.fillRect(x, y, width, height);
     }
+    if (stroke) {
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = strokeWidth;
+      ctx.strokeRect(x, y, width, height);
+    }
+  };
 
-    if (fill) ctx.fill();
+  const drawLine = (ctx, props) => {
+    const { x1, y1, x2, y2, stroke = '#000', strokeWidth = 2, dash = [] } = props;
+    ctx.save();
+    if (dash && dash.length) ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = strokeWidth;
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  };
 
+  const drawPolygon = (ctx, props) => {
+    const { x, y, sides = 5, r = 40, rotation = 0, fill = '#000', stroke = '#000', strokeWidth = 1 } = props;
+    ctx.beginPath();
+    for (let i = 0; i < sides; i++) {
+      const angle = rotation + (i * 2 * Math.PI) / sides;
+      const px = x + Math.cos(angle) * r;
+      const py = y + Math.sin(angle) * r;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    if (fill) {
+      ctx.fillStyle = fill;
+      ctx.fill();
+    }
     if (stroke) {
       ctx.strokeStyle = stroke;
       ctx.lineWidth = strokeWidth;
       ctx.stroke();
     }
+  };
 
+  const drawCurve = (ctx, props) => {
+    const { points = [], stroke = '#000', strokeWidth = 2, fill } = props;
+    if (points.length < 2) return;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length - 1; i++) {
+      const xc = (points[i].x + points[i + 1].x) / 2;
+      const yc = (points[i].y + points[i + 1].y) / 2;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+    }
+    ctx.lineTo(points[points.length - 1].x, points[points.length - 1].y);
+    if (fill) {
+      ctx.fillStyle = '#000';
+      ctx.fill();
+    }
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = strokeWidth;
+    ctx.stroke();
+  };
+
+  const drawStar = (ctx, props) => {
+    const { x, y, outerRadius = 40, innerRadius = 20, points = 5, rotation = 0, fill = '#000', stroke = '#000', strokeWidth = 1 } = props;
+    ctx.beginPath();
+    for (let i = 0; i < points * 2; i++) {
+      const radius = i % 2 === 0 ? outerRadius : innerRadius;
+      const angle = rotation + (i * Math.PI) / points;
+      const px = x + Math.cos(angle) * radius;
+      const py = y + Math.sin(angle) * radius;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = strokeWidth; ctx.stroke(); }
+  };
+
+  const drawWave = (ctx, props) => {
+    const { x, y, width = 200, amplitude = 20, frequency = 0.02, stroke = '#000', strokeWidth = 2, fill } = props;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let i = 0; i <= width; i += 2) {
+      const waveY = y + Math.sin(i * frequency) * amplitude;
+      ctx.lineTo(x + i, waveY);
+    }
+    if (fill) {
+      ctx.lineTo(x + width, y);
+      ctx.closePath();
+      ctx.fillStyle = '#000';
+      ctx.fill();
+    } else {
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = strokeWidth;
+      ctx.stroke();
+    }
+  };
+
+  const prettify = (s) => {
+    if (!s) return '';
+    return String(s).replace(/[_-]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
+
+  const drawAutoLabel = (ctx, layer, props, type) => {
+    const label = layer.label || props.label || prettify(layer.id);
+    if (!label || type === 'text') return;
+    let cx = props.x ?? 0;
+    let cy = props.y ?? 0;
+    if (type === 'rectangle') { cx = props.x + (props.width || 0) / 2; cy = props.y + (props.height || 0) / 2; }
+    if (type === 'circle' || type === 'star' || type === 'polygon') { cx = props.x; cy = props.y; }
+    if (type === 'line') { cx = (props.x1 + props.x2) / 2; cy = (props.y1 + props.y2) / 2; }
+    if (type === 'arrow') { cx = props.x + (props.dx || 0) / 2; cy = props.y + (props.dy || 0) / 2; }
+    if (type === 'curve' && Array.isArray(props.points) && props.points.length) {
+      const mid = props.points[Math.floor(props.points.length / 2)];
+      cx = mid.x; cy = mid.y;
+    }
+
+    ctx.save();
+    ctx.fillStyle = '#000';
+    ctx.font = `10px Inter`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(label, cx, cy - 6);
     ctx.restore();
   };
 
   const drawArrow = (ctx, props) => {
-    const { x, y, dx, dy, color = '#ffffff', width = 3, glow = false, animated = false } = props;
-
-    ctx.save();
-
-    if (glow) {
-      ctx.shadowColor = color;
-      ctx.shadowBlur = 10;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-    }
-
-    // Draw main line with gradient
-    const gradient = ctx.createLinearGradient(x, y, x + dx, y + dy);
-    gradient.addColorStop(0, color);
-    gradient.addColorStop(1, color + '80');
-
+    const { x, y, dx, dy, color = '#000', width = 2 } = props;
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.lineTo(x + dx, y + dy);
-    ctx.strokeStyle = gradient;
+    ctx.strokeStyle = color;
     ctx.lineWidth = width;
     ctx.stroke();
 
-    // Draw arrowhead
     const angle = Math.atan2(dy, dx);
-    const arrowLength = Math.max(15, Math.sqrt(dx * dx + dy * dy) * 0.15);
-
+    const arrowLength = 10;
     ctx.beginPath();
     ctx.moveTo(x + dx, y + dy);
     ctx.lineTo(
@@ -365,158 +585,13 @@ function UI() {
       y + dy - arrowLength * Math.sin(angle + Math.PI / 6)
     );
     ctx.stroke();
-
-    ctx.restore();
   };
 
   const drawText = (ctx, props) => {
-    const { x, y, text, fontSize = 24, fill = '#ffffff', fontFamily = 'Inter', glow = false, bold = false, italic = false, outline = false } = props;
-
-    ctx.save();
-
-    // Build font string
-    let fontStyle = '';
-    if (italic) fontStyle += 'italic ';
-    if (bold) fontStyle += 'bold ';
-    fontStyle += `${fontSize}px ${fontFamily}`;
-
-    ctx.font = fontStyle;
-
-    if (glow) {
-      ctx.shadowColor = fill;
-      ctx.shadowBlur = 8;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-    }
-
-    // Draw outline if requested
-    if (outline) {
-      ctx.strokeStyle = fill === '#ffffff' ? '#000000' : '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.strokeText(text, x, y);
-    }
-
-    // Draw main text
+    const { x, y, text, fontSize = 12, fill = '#000', fontFamily = 'Inter' } = props;
+    ctx.font = `${fontSize}px ${fontFamily}`;
     ctx.fillStyle = fill;
     ctx.fillText(text, x, y);
-
-    ctx.restore();
-  };
-
-  const drawStar = (ctx, props) => {
-    const { x, y, outerRadius = 30, innerRadius = 15, points = 5, fill = '#ffff00', glow = true } = props;
-
-    ctx.save();
-
-    if (glow) {
-      ctx.shadowColor = fill;
-      ctx.shadowBlur = 15;
-      ctx.shadowOffsetX = 0;
-      ctx.shadowOffsetY = 0;
-    }
-
-    ctx.beginPath();
-    for (let i = 0; i < points * 2; i++) {
-      const angle = (i * Math.PI) / points;
-      const radius = i % 2 === 0 ? outerRadius : innerRadius;
-      const px = x + Math.cos(angle) * radius;
-      const py = y + Math.sin(angle) * radius;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-
-    ctx.fillStyle = fill;
-    ctx.fill();
-
-    ctx.restore();
-  };
-
-  const drawParticleSystem = (ctx, props) => {
-    const { x, y, count = 20, radius = 100, colors = ['#ffffff', '#00ffff', '#ff00ff', '#ffff00'] } = props;
-
-    for (let i = 0; i < count; i++) {
-      const angle = (i / count) * Math.PI * 2;
-      const distance = Math.random() * radius;
-      const px = x + Math.cos(angle) * distance;
-      const py = y + Math.sin(angle) * distance;
-      const size = Math.random() * 3 + 1;
-      const color = colors[Math.floor(Math.random() * colors.length)];
-
-      ctx.save();
-      ctx.globalAlpha = Math.random() * 0.8 + 0.2;
-      ctx.fillStyle = color;
-      ctx.beginPath();
-      ctx.arc(px, py, size, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.restore();
-    }
-  };
-
-  const drawWave = (ctx, props) => {
-    const { x, y, width = 400, amplitude = 30, frequency = 0.02, stroke = '#00ffff', strokeWidth = 3, fill = null } = props;
-
-    ctx.save();
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = strokeWidth;
-
-    ctx.beginPath();
-    ctx.moveTo(x, y);
-
-    for (let i = 0; i <= width; i += 2) {
-      const waveY = y + Math.sin(i * frequency) * amplitude * Math.sin(Date.now() * 0.005);
-      ctx.lineTo(x + i, waveY);
-    }
-
-    if (fill) {
-      ctx.lineTo(x + width, y + amplitude * 2);
-      ctx.lineTo(x, y + amplitude * 2);
-      ctx.closePath();
-      ctx.fillStyle = fill;
-      ctx.fill();
-    } else {
-      ctx.stroke();
-    }
-
-    ctx.restore();
-  };
-
-  const drawExplosion = (ctx, props) => {
-    const { x, y, radius = 50, particles = 12, colors = ['#ff0000', '#ff6600', '#ffff00', '#ffffff'] } = props;
-
-    for (let i = 0; i < particles; i++) {
-      const angle = (i / particles) * Math.PI * 2;
-      const distance = Math.random() * radius;
-      const px = x + Math.cos(angle) * distance;
-      const py = y + Math.sin(angle) * distance;
-
-      ctx.save();
-      ctx.strokeStyle = colors[Math.floor(Math.random() * colors.length)];
-      ctx.lineWidth = Math.random() * 3 + 1;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(px, py);
-      ctx.stroke();
-      ctx.restore();
-    }
-  };
-
-  const drawEnergyField = (ctx, props) => {
-    const { x, y, radius = 60, rings = 3, color = '#00ffff' } = props;
-
-    for (let r = 0; r < rings; r++) {
-      const ringRadius = radius * (1 - r * 0.2);
-      const opacity = 0.8 - r * 0.2;
-
-      ctx.save();
-      ctx.strokeStyle = color;
-      ctx.globalAlpha = opacity;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(x, y, ringRadius, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
-    }
   };
 
   return (
@@ -548,25 +623,30 @@ function UI() {
             <div className="canvas-container">
               <canvas
                 ref={canvasRef}
-                width={700}
-                height={450}
+                width={900}
+                height={600}
                 className="visualization-canvas"
               />
               <div className="controls">
-                <button onClick={handlePlayPause} className="control-btn">
-                  {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+                <button onClick={handleRestart} className="control-btn restart-btn" title="Restart Animation">
+                  <RotateCcw size={16} />
                 </button>
-                <div className="progress-bar">
-                  <div
-                    className="progress-fill"
-                    style={{
-                      width: `${Math.min((currentTime / (currentAnswer.visualization.duration || 4000)) * 100, 100)}%`
-                    }}
-                  />
+                <button onClick={handlePlayPause} className="control-btn play-btn">
+                  {isPlaying ? <Pause size={18} /> : <Play size={18} />}
+                </button>
+                <div className="progress-container">
+                  <div className="progress-bar">
+                    <div
+                      className="progress-fill"
+                      style={{
+                        width: `${Math.min((currentTime / (currentAnswer.visualization.duration || 4000)) * 100, 100)}%`
+                      }}
+                    />
+                  </div>
+                  <span className="progress-text">
+                    {Math.floor(currentTime / 1000)}s / {Math.floor((currentAnswer.visualization.duration || 4000) / 1000)}s
+                  </span>
                 </div>
-                <span className="progress-text">
-                  {Math.round((currentTime / (currentAnswer.visualization.duration || 4000)) * 100)}%
-                </span>
               </div>
             </div>
           ) : (

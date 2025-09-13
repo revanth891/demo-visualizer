@@ -7,22 +7,7 @@ const questions = [
   "Explain the water cycle",
   "What is nuclear fission?",
   "Explain how volcanoes erupt",
-  "Describe the process of evolution",
-  "How does the human heart work?",
-  "Explain climate change",
-  "What is the speed of light?",
-  "How do rockets work?",
-  "What is the periodic table?",
-  "Explain how vaccines work",
-  "What is dark matter?",
-  "How do earthquakes happen?",
-  "What is the solar system?",
-  "Explain how computers work",
-  "What is the theory of relativity?",
-  "How do airplanes fly?",
-  "What is the human brain?",
-  "Explain how plants grow",
-  "What is nuclear fusion?"
+  "Describe the process of evolution"
 ];
 
 const http = require('http');
