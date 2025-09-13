@@ -7,7 +7,7 @@
     "dev": "vite",
     "start": "vite",
     "localhost": "vite",
-    "build": "vite build",
+    "build": "vite",
     "preview": "vite preview"
   },
   "devDependencies": {
