@@ -15,17 +15,14 @@ import {
 
 // API base URL configuration
 const getApiBaseUrl = () => {
-  // In production, use environment variable or fallback to the deployed API
   if (import.meta.env.PROD) {
     return import.meta.env.VITE_API_BASE_URL || 'https://demo-visualizer.onrender.com';
   }
-  // In development, use the Vite proxy (which routes /api to the backend)
   return '';
 };
 
 const API_BASE_URL = getApiBaseUrl();
 
-// Consolidated UI Component - Black & White Luxury Design
 function UI() {
   const [questions, setQuestions] = useState([]);
   const [currentAnswer, setCurrentAnswer] = useState(null);
@@ -38,7 +35,7 @@ function UI() {
   const startTimeRef = useRef(null);
   const [currentTime, setCurrentTime] = useState(0);
 
-  // Demo questions - cleaned and minimal
+  // Demo questions 
   const demoQuestions = [
     "Explain Newton's First Law of Motion",
     "What is photosynthesis?",
@@ -116,8 +113,7 @@ function UI() {
       ctx.translate(offsetX, offsetY);
       ctx.scale(scale, scale);
 
-      // Clip to the scaled canvas bounds to prevent overflow
-      // Use a slightly smaller clip area to ensure labels stay within bounds
+      // Clipping to the scaled canvas bounds to prevent overflow
       const clipPadding = 10;
       ctx.beginPath();
       ctx.rect(
@@ -151,7 +147,7 @@ function UI() {
     };
   }, [currentAnswer?.visualization, isPlaying]);
 
-  // Reset animation when visualization changes
+  // Resetting animation when visualization changes
   useEffect(() => {
     startTimeRef.current = null;
     setCurrentTime(0);
